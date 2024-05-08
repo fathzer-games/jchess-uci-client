@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 
 /** The reply to a go request.
  */
@@ -61,7 +60,7 @@ public class GoReply {
 		private Optional<List<String>> pv;
 		
 		/** Constructor.
-		 * @param depth The search depth.
+		 * @param move The move in uci format.
 		 */
 		public UCIMove(String move) {
 			this.move = move;
