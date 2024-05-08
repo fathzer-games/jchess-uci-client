@@ -2,6 +2,7 @@ package com.fathzer.uci.client;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -56,12 +57,12 @@ public class UCIEngine implements Closeable {
 		return uciBase.newGame(variant);
 	}
 
-	public void setPosition(String fen, List<String> moves) throws IOException {
+	public void setPosition(Optional<String> fen, List<String> moves) throws IOException {
 		uciBase.setPosition(fen, moves);
 	}
 
-	public String getMove(CountDownState params) throws IOException {
-		return uciBase.getMove(params);
+	public GoReply go(CountDownState params) throws IOException {
+		return uciBase.go(params);
 	}
 
 	@Override

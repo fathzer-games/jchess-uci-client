@@ -13,6 +13,7 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fathzer.uci.client.GoReply.UCIMove;
 import com.fathzer.uci.client.Option.Type;
 
 import java.io.Closeable;
@@ -187,12 +188,12 @@ class UCIEngineBase implements Closeable {
 		throw new EOFException();
 	}
 
-	public void setPosition(String fen, List<String> moves) throws IOException {
-		whiteToPlay = "w".equals(fen.split(" ")[1]);
+	public void setPosition(Optional<String> fen, List<String> moves) throws IOException {
+		whiteToPlay = fen.isEmpty() || "w".equals(fen.get().split(" ")[1]);
 		if (moves.size()%2!=0) {
 			whiteToPlay = !whiteToPlay;
 		}
-		final StringBuilder builder = new StringBuilder("position fen "+fen);
+		final StringBuilder builder = new StringBuilder(fen.isEmpty() ? "position startpos" : "position fen "+fen.get());
 		if (!moves.isEmpty()) {
 			builder.append(" moves");
 			for (String move : moves) {
@@ -204,7 +205,7 @@ class UCIEngineBase implements Closeable {
 		positionSet = true;
 	}
 
-	public String getMove(CountDownState params) throws IOException {
+	public GoReply go(CountDownState params) throws IOException {
 		if (!positionSet) {
 			throw new IllegalStateException("No position defined");
 		}
@@ -214,23 +215,23 @@ class UCIEngineBase implements Closeable {
 			final char prefix = whiteToPlay ? 'w' : 'b';
 			command.append(prefix);
 			command.append("time ");
-			command.append(params.getRemainingMs());
-			if (params.getIncrementMs()>0) {
+			command.append(params.remainingMs());
+			if (params.incrementMs()>0) {
 				command.append(" ");
 				command.append(prefix);
 				command.append("inc ");
-				command.append(params.getIncrementMs());
+				command.append(params.incrementMs());
 			}
-			if (params.getMovesToGo()>0) {
+			if (params.movesToGo()>0) {
 				command.append(" ");
 				command.append("movestogo ");
-				command.append(params.getMovesToGo());
+				command.append(params.movesToGo());
 			}
 		}
 		write (command.toString());
 		var bestMovePrefix = "bestmove ";
 		final String answer = waitAnswer(s -> s.startsWith(bestMovePrefix));
-		return answer.substring(bestMovePrefix.length());
+		return new GoReply(new UCIMove(answer.substring(bestMovePrefix.length())));
 	}
 
 	public void close() throws IOException {
