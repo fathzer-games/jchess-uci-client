@@ -93,29 +93,32 @@ class UCIEngineBase implements Closeable {
 			line = read();
 			if (line==null) {
 				throw new EOFException();
-			}
-			if (line.startsWith(ID_NAME_PREFIX)) {
+			} else if (line.startsWith(ID_NAME_PREFIX)) {
 				name = line.substring(ID_NAME_PREFIX.length());
 			} else {
 				final Optional<Option<?>> ooption = parseOption(line);
-				if (ooption.isPresent()) {
-					Option<?> option = ooption.get();
-					if (CHESS960_OPTION.equals(option.getName())) {
-						is960Supported = true;
-					} else if (!PONDER_OPTION.equals(option.getName())) {
-						// Ponder is not supported yet
-						option.addListener((prev, cur) -> {
-							try {
-								setOption(option, cur);
-							} catch (IOException e) {
-								throw new UncheckedIOException(e);
-							}
-						});
-						options.add(option);
-					}
+				if (ooption.isPresent() && isOptionSupported(ooption.get())) {
+					options.add(ooption.get());
 				}
 			}
 		} while (!"uciok".equals(line));
+	}
+	
+	private boolean isOptionSupported(Option<?> option) {
+		if (CHESS960_OPTION.equals(option.getName())) {
+			is960Supported = true;
+		} else if (!PONDER_OPTION.equals(option.getName())) {
+			//TODO Ponder is not supported yet
+			option.addListener((prev, cur) -> {
+				try {
+					setOption(option, cur);
+				} catch (IOException e) {
+					throw new UncheckedIOException(e);
+				}
+			});
+			return true;
+		}
+		return false;
 	}
 	
 	private Optional<Option<?>> parseOption(String line) throws IOException {
