@@ -18,7 +18,12 @@ class UCIEngineBaseTest {
 	
 	@Test
 	void test() throws Exception {
-		try (TestEngine eng = TestEngine.build()) {
+		try (TestEngine eng = TestEngine.build(null)) {
+			assertThrows (IllegalStateException.class, () -> eng.getOptions());
+			eng.onReceive("quit");
+		}
+		
+		try (TestEngine eng = TestEngine.build(Arrays.asList("id name toto","id author me", "option name Hash type spin default 1 min 1 max 512","uciok"))) {
 			assertEquals("toto", eng.getName());
 			assertEquals(Arrays.asList("Hash"), eng.getOptions().stream().map(Option::getName).toList());
 
@@ -73,15 +78,17 @@ class UCIEngineBaseTest {
 		private String expectedRequest;
 		private List<String> reply;
 		
-		private TestEngine(StringBuilder r, StringWriter w) throws IOException {
+		private TestEngine(StringBuilder r, StringWriter w, List<String> uciReply) throws IOException {
 			super(CharSource.wrap(r).openBufferedStream(), new BufferedWriter(w));
 			this.r = r;
-			onReceive("uci", Arrays.asList("id name toto","option name Hash type spin default 1 min 1 max 512","uciok"));
-			init();
+			if (uciReply!=null) {
+				onReceive("uci", uciReply);
+				init();
+			}
 		}
 
-		static TestEngine build() throws IOException {
-			return new TestEngine(new StringBuilder(), new StringWriter());
+		static TestEngine build(List<String> uciReply) throws IOException {
+			return new TestEngine(new StringBuilder(), new StringWriter(), uciReply);
 		}
 		
 		public void onReceive(String request) {
