@@ -5,89 +5,44 @@ import java.io.BufferedWriter;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fathzer.uci.client.GoReply.UCIMove;
 import com.fathzer.uci.client.Option.Type;
 
 import java.io.Closeable;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 class UCIEngineBase implements Closeable {
 	private static final String ID_NAME_PREFIX = "id name ";
 	private static final String CHESS960_OPTION = "UCI_Chess960";
 	private static final String PONDER_OPTION = "Ponder";
+	private static final String BEST_MOVE_PREFIX = "bestmove ";
 	
-	static class StdErrReader implements Closeable, Runnable {
-		private final BufferedReader errorReader;
-		private final Thread spyThread;
-		private final AtomicBoolean stopped;
-
-		StdErrReader(BufferedReader errorReader) {
-			this.errorReader = errorReader;
-			this.stopped = new AtomicBoolean();
-			this.spyThread = new Thread(this);
-			this.spyThread.setDaemon(true);
-			this.spyThread.start();
-		}
-		
-		@Override
-		public void run() {
-			while (!stopped.get()) {
-				try {
-					final String line = errorReader.readLine();
-					if (line!=null) {
-						System.err.println (line); //TODO
-					}
-				} catch (EOFException e) {
-					if (!stopped.get()) {
-						log(e);
-					}
-				} catch (IOException e) {
-					log(e);
-				}
-			}
-		}
-
-		private void log(IOException e) {
-			synchronized(System.err) {
-				System.err.println("An error occured, stopped is "+ stopped);
-				e.printStackTrace(); //TODO
-			}
-		}
-
-		@Override
-		public void close() throws IOException {
-			this.stopped.set(true);
-			this.errorReader.close();
-		}
-	}
-	private static final Logger log = LoggerFactory.getLogger(UCIEngineBase.class);
-	
-	private String name;
 	private final BufferedReader reader;
 	private final BufferedWriter writer;
-	private final StdErrReader errorReader;
-	private final List<Option<?>> options;
+	private List<Option<?>> options;
+	private String name;
 	private boolean is960Supported;
 	private boolean whiteToPlay;
 	private boolean positionSet;
 
-	UCIEngineBase(BufferedReader reader, BufferedWriter writer, BufferedReader errorReader) throws IOException {
+	protected UCIEngineBase(BufferedReader reader, BufferedWriter writer) {
 		this.reader = reader;
 		this.writer = writer;
-		this.errorReader = new StdErrReader(errorReader);
-		this.options = new ArrayList<>();
-		init();
 	}
 	
-	private void init() throws IOException {
+	private void checkInit() {
+		if (options==null) {
+			throw new IllegalStateException("Init was not called");
+		}
+	}
+	
+	void init() throws IOException {
+		options = new LinkedList<>();
 		this.write("uci");
 		String line;
 		do {
@@ -106,6 +61,7 @@ class UCIEngineBase implements Closeable {
 	}
 	
 	private boolean isOptionSupported(Option<?> option) {
+		checkInit();
 		if (CHESS960_OPTION.equals(option.getName())) {
 			is960Supported = true;
 		} else if (!PONDER_OPTION.equals(option.getName())) {
@@ -140,27 +96,27 @@ class UCIEngineBase implements Closeable {
 		write(buf.toString());
 	}
 	
-	private void write(String line) throws IOException {
+	protected void write(String line) throws IOException {
 		this.writer.write(line);
 		this.writer.newLine();
 		this.writer.flush();
-		log.info(">{}: {}", getName(), line);
 	}
-	private String read() throws IOException {
-		final String line = reader.readLine();
-		log.info("<{} : {}", getName(), line);
-		return line;
+	protected String read() throws IOException {
+		return reader.readLine();
 	}
 
 	public List<Option<?>> getOptions() {
+		checkInit();
 		return options;
 	}
 	
 	public boolean isSupported(Variant variant) {
+		checkInit();
 		return variant==Variant.STANDARD || (variant==Variant.CHESS960 && is960Supported);
 	}
 
 	public boolean newGame(Variant variant) throws IOException {
+		checkInit();
 		positionSet = false;
 		if (variant==Variant.CHESS960 && !is960Supported) {
 			return false;
@@ -189,6 +145,7 @@ class UCIEngineBase implements Closeable {
 	}
 
 	public void setPosition(Optional<String> fen, List<String> moves) throws IOException {
+		checkInit();
 		whiteToPlay = fen.isEmpty() || "w".equals(fen.get().split(" ")[1]);
 		if (moves.size()%2!=0) {
 			whiteToPlay = !whiteToPlay;
@@ -206,9 +163,15 @@ class UCIEngineBase implements Closeable {
 	}
 
 	public GoReply go(CountDownState params) throws IOException {
+		checkInit();
 		if (!positionSet) {
 			throw new IllegalStateException("No position defined");
 		}
+		write (getGoCommand(params));
+		return parseGoReply();
+	}
+
+	private String getGoCommand(CountDownState params) {
 		final StringBuilder command = new StringBuilder("go");
 		if (params!=null) {
 			command.append(' ');
@@ -228,10 +191,19 @@ class UCIEngineBase implements Closeable {
 				command.append(params.movesToGo());
 			}
 		}
-		write (command.toString());
-		var bestMovePrefix = "bestmove ";
-		final String answer = waitAnswer(s -> s.startsWith(bestMovePrefix));
-		return new GoReply(new UCIMove(answer.substring(bestMovePrefix.length())));
+		return command.toString();
+	}
+	
+	private GoReply parseGoReply() throws IOException {
+		String reply = waitAnswer(s -> s.startsWith(BEST_MOVE_PREFIX)).substring(BEST_MOVE_PREFIX.length());
+		if ("(none)".equalsIgnoreCase(reply)) {
+			return new GoReply(Collections.emptyList(), Optional.empty());
+		}
+		final String ponderSep = " ponder ";
+		final int index = reply.indexOf(ponderSep);
+		final String best = index<0 ? reply : reply.substring(0, index);
+		String ponder = index<0 ? null : reply.substring(index+ponderSep.length());
+		return new GoReply(Collections.singletonList(new UCIMove(best)), Optional.ofNullable(ponder));
 	}
 
 	public void close() throws IOException {
@@ -242,10 +214,9 @@ class UCIEngineBase implements Closeable {
 	public void closeStreams() throws IOException {
 		this.reader.close();
 		this.writer.close();
-		this.errorReader.close();
 	}
 
 	public String getName() {
-		return name;
+		return name==null ? "?" : name;
 	}
 }

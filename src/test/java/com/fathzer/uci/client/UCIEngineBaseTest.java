@@ -3,8 +3,11 @@ package com.fathzer.uci.client;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.StringWriter;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -12,33 +15,67 @@ import org.junit.jupiter.api.Test;
 import com.google.common.io.CharSource;
 
 class UCIEngineBaseTest {
-
+	
 	@Test
-	void goTest() throws Exception {
-		final StringBuilder r = new StringBuilder();
-		final StringWriter w = new StringWriter();
-		r.append("id name toto\nuciok\n");
-		try (UCIEngineBase eng = new UCIEngineBase(CharSource.wrap(r).openBufferedStream() , new BufferedWriter(w), CharSource.wrap(new StringBuilder()).openBufferedStream())) {
-			assertEquals("uci\n", toUnix(w.toString()));
-			w.getBuffer().delete(0, w.getBuffer().length());
+	void test() throws Exception {
+		try (TestEngine eng = TestEngine.build()) {
 
 			final CountDownState time = new CountDownState(0, 0, 0);
 			assertThrows(IllegalStateException.class, () -> eng.go(time));
 			
+			assertEquals("toto", eng.getName());
+			assertTrue(eng.getOptions().isEmpty());
+			
+			eng.onReceive("position startpos");
 			eng.setPosition(Optional.empty(), Collections.emptyList());
-			assertEquals("position startpos\n", toUnix(w.toString()));
-			w.getBuffer().delete(0, w.getBuffer().length());
 
-			r.append("bestmove d2d4");
+			eng.onReceive("go", Collections.singletonList("bestmove d2d4"));
 			GoReply reply = eng.go(null);
 			assertEquals("d2d4", reply.getMoves().get(0).getMove());
-			assertEquals("go\n", toUnix(w.toString()));
-			w.getBuffer().delete(0, w.getBuffer().length());
+
+			eng.onReceive("go", Collections.singletonList("bestmove d2d4 ponder d7d5"));
+			reply = eng.go(null);
+			assertEquals("d2d4", reply.getMoves().get(0).getMove());
+			assertEquals("d7d5", reply.getPonderMove().get());
+
+			eng.onReceive("quit");
 		}
 	}
 
-	private String toUnix(String string) {
-		return string.replaceAll("\\r", "");
+	private static class TestEngine extends UCIEngineBase {
+		private final StringBuilder r;
+		private String expectedRequest;
+		private List<String> reply;
+		
+		private TestEngine(StringBuilder r, StringWriter w) throws IOException {
+			super(CharSource.wrap(r).openBufferedStream(), new BufferedWriter(w));
+			this.r = r;
+			onReceive("uci", Arrays.asList("id name toto","uciok"));
+			init();
+		}
+
+		static TestEngine build() throws IOException {
+			return new TestEngine(new StringBuilder(), new StringWriter());
+		}
+		
+		public void onReceive(String request) {
+			this.expectedRequest = request;
+			this.reply = Collections.emptyList();
+		}
+		public void onReceive(String request, List<String> reply) {
+			this.expectedRequest = request;
+			this.reply = reply;
+		}
+
+		@Override
+		protected void write(String line) throws IOException {
+			assertEquals(expectedRequest, line);
+			expectedRequest = null;
+			reply.forEach(s -> {
+				r.append(s);
+				r.append('\n');
+			});
+			super.write(line);
+		}
 	}
-	
 }
