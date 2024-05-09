@@ -19,12 +19,15 @@ class UCIEngineBaseTest {
 	@Test
 	void test() throws Exception {
 		try (TestEngine eng = TestEngine.build()) {
-
-			final CountDownState time = new CountDownState(0, 0, 0);
-			assertThrows(IllegalStateException.class, () -> eng.go(time));
-			
 			assertEquals("toto", eng.getName());
-			assertTrue(eng.getOptions().isEmpty());
+			assertEquals(Arrays.asList("Hash"), eng.getOptions().stream().map(Option::getName).toList());
+
+			eng.onReceive("setoption name Hash value 16", Collections.emptyList());
+			final Option<?> option = eng.getOptions().stream().filter(o -> "Hash".equals(o.getName())).findFirst().get();
+			Option.setValue(option, "16");
+			assertTrue(eng.isReceivedConsumed());
+			
+			assertThrows(IllegalStateException.class, () -> eng.go(null));
 			
 			eng.onReceive("position startpos");
 			eng.setPosition(Optional.empty(), Collections.emptyList());
@@ -73,7 +76,7 @@ class UCIEngineBaseTest {
 		private TestEngine(StringBuilder r, StringWriter w) throws IOException {
 			super(CharSource.wrap(r).openBufferedStream(), new BufferedWriter(w));
 			this.r = r;
-			onReceive("uci", Arrays.asList("id name toto","uciok"));
+			onReceive("uci", Arrays.asList("id name toto","option name Hash type spin default 1 min 1 max 512","uciok"));
 			init();
 		}
 
@@ -88,6 +91,9 @@ class UCIEngineBaseTest {
 		public void onReceive(String request, List<String> reply) {
 			this.expectedRequest = request;
 			this.reply = reply;
+		}
+		public boolean isReceivedConsumed() {
+			return this.expectedRequest==null;
 		}
 
 		@Override

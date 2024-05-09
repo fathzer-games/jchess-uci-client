@@ -31,4 +31,8 @@ public abstract class Option<T> extends Observable<T> {
 		}
 		super.setValue(value);
 	}
+	
+	public static <T> void setValue(Option<T> option, String value) {
+		option.setValue(option.toValue(value));
+	}
 }
