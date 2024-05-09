@@ -5,13 +5,12 @@ import java.io.BufferedWriter;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import com.fathzer.uci.client.GoReply.UCIMove;
 import com.fathzer.uci.client.Option.Type;
 
 import java.io.Closeable;
@@ -20,7 +19,6 @@ class UCIEngineBase implements Closeable {
 	private static final String ID_NAME_PREFIX = "id name ";
 	private static final String CHESS960_OPTION = "UCI_Chess960";
 	private static final String PONDER_OPTION = "Ponder";
-	private static final String BEST_MOVE_PREFIX = "bestmove ";
 	
 	private final BufferedReader reader;
 	private final BufferedWriter writer;
@@ -136,9 +134,20 @@ class UCIEngineBase implements Closeable {
 	 * @throws IOException If communication with engine fails
 	 */
 	private String waitAnswer(Predicate<String> answerValidator) throws IOException {
+		return waitAnswer(answerValidator, s->{});
+	}
+	/** Reads the engine standard output until a valid answer is returned.
+	 * @param answerValidator a predicate that checks the lines returned by engine. 
+	 * @return The line that is considered valid, null if no valid line is returned
+	 * and the engine closed its output.
+	 * @throws IOException If communication with engine fails
+	 */
+	private String waitAnswer(Predicate<String> answerValidator, Consumer<String> otherLines) throws IOException {
 		for (String line = read(); line!=null; line=read()) {
 			if (answerValidator.test(line)) {
 				return line;
+			} else {
+				otherLines.accept(line);
 			}
 		}
 		throw new EOFException();
@@ -168,7 +177,8 @@ class UCIEngineBase implements Closeable {
 			throw new IllegalStateException("No position defined");
 		}
 		write (getGoCommand(params));
-		return parseGoReply();
+		final GoReplyParser parser = new GoReplyParser();
+		return parser.get(waitAnswer(GoReplyParser.IS_REPLY, parser::parseInfo));
 	}
 
 	private String getGoCommand(CountDownState params) {
@@ -192,18 +202,6 @@ class UCIEngineBase implements Closeable {
 			}
 		}
 		return command.toString();
-	}
-	
-	private GoReply parseGoReply() throws IOException {
-		String reply = waitAnswer(s -> s.startsWith(BEST_MOVE_PREFIX)).substring(BEST_MOVE_PREFIX.length());
-		if ("(none)".equalsIgnoreCase(reply)) {
-			return new GoReply(Collections.emptyList(), Optional.empty());
-		}
-		final String ponderSep = " ponder ";
-		final int index = reply.indexOf(ponderSep);
-		final String best = index<0 ? reply : reply.substring(0, index);
-		String ponder = index<0 ? null : reply.substring(index+ponderSep.length());
-		return new GoReply(Collections.singletonList(new UCIMove(best)), Optional.ofNullable(ponder));
 	}
 
 	public void close() throws IOException {

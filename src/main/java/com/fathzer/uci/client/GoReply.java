@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /** The reply to a go request.
  */
@@ -55,7 +56,9 @@ public class GoReply {
 	/** The information attached to the reply (the information returned in info lines).
 	 */
 	public static class UCIMove {
-		private final String move;
+		private String move;
+		private OptionalInt depth;
+		private OptionalInt selDepth;
 		private Optional<Score> score;
 		private Optional<List<String>> pv;
 		
@@ -72,6 +75,10 @@ public class GoReply {
 			return move;
 		}
 
+		public void setMove(String move) {
+			this.move = move;
+		}
+
 		public Optional<List<String>> getPv() {
 			return pv;
 		}
@@ -86,6 +93,22 @@ public class GoReply {
 
 		public void setScore(Optional<Score> score) {
 			this.score = score;
+		}
+
+		public OptionalInt getDepth() {
+			return depth;
+		}
+
+		public void setDepth(OptionalInt depth) {
+			this.depth = depth;
+		}
+
+		public OptionalInt getSelDepth() {
+			return selDepth;
+		}
+
+		public void setSelDepth(OptionalInt selDepth) {
+			this.selDepth = selDepth;
 		}
 	}
 	
@@ -112,54 +135,4 @@ public class GoReply {
 	public Optional<String> getPonderMove() {
 		return ponderMove;
 	}
-//	
-//	@Override
-//	/** Gets the uci representation of the reply.
-//	 * @return a String
-//	 * @see #getMainInfoString()
-//	 */
-//	public String toString() {
-//		return "bestmove "+(bestMove==null?"(none)":bestMove)+(ponderMove==null?"":(" "+ponderMove));
-//	}
-//	
-//	/** Gets the uci info line to return just before sending the reply.
-//	 * @return The line or an empty optional if no information is available
-//	 */
-//	public Optional<String> getMainInfoString() {
-//		return bestMove==null ? Optional.empty() : getInfoString(0);
-//	}
-//
-//	/** Gets the uci info line to return just before sending the reply.
-//	 * @param index The move index (0 for the best move or the index or the extra moves passed to {@code Info#setExtraMoves(List)} +1
-//	 * @return The line or an empty optional if no information is available
-//	 */
-//	public Optional<String> getInfoString(int index) {
-//		final StringBuilder builder = new StringBuilder();
-//		if (info.depth>0) {
-//			builder.append("depth ").append(info.depth);
-//		}
-//		final UCIMove move = index==0 ? bestMove : info.extraMoves.get(index-1);
-//		final Optional<Score> score = info.scoreBuilder.apply(move);
-//		if (score.isPresent()) {
-//			if (!builder.isEmpty()) {
-//				builder.append(' ');
-//			}
-//			builder.append("score ").append(score.get().toUCI());
-//		}
-//		if (info.hashFull>0) {
-//			if (!builder.isEmpty()) {
-//				builder.append(' ');
-//			}
-//			builder.append("hashfull ").append(info.hashFull);
-//		}
-//		final Optional<List<UCIMove>> pv = info.pvBuilder.apply(move);
-//		if (pv.isPresent()) {
-//			if (!builder.isEmpty()) {
-//				builder.append(' ');
-//			}
-//			final String moves = String.join(" ", pv.get().stream().map(UCIMove::toString).toList());
-//			builder.append("multipv ").append(index+1).append(" pv ").append(moves);
-//		}
-//		return builder.isEmpty() ? Optional.empty() : Optional.of("info "+builder);
-//	}
 }
