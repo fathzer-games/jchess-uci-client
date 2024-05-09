@@ -26,6 +26,9 @@ class UCIEngineBaseTest {
 		try (TestEngine eng = TestEngine.build(Arrays.asList("id name toto","id author me", "option name Hash type spin default 1 min 1 max 512","uciok"))) {
 			assertEquals("toto", eng.getName());
 			assertEquals(Arrays.asList("Hash"), eng.getOptions().stream().map(Option::getName).toList());
+			
+			assertTrue(eng.isSupported(Variant.STANDARD));
+			assertFalse(eng.isSupported(Variant.CHESS960));
 
 			eng.onReceive("setoption name Hash value 16", Collections.emptyList());
 			final Option<?> option = eng.getOptions().stream().filter(o -> "Hash".equals(o.getName())).findFirst().get();
