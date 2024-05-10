@@ -57,7 +57,7 @@ public class GoParameters {
 		}
 	}
 
-	private TimeControl clockData;
+	private TimeControl timeControl = new TimeControl();
 	private boolean ponder;
 	private int depth = 0;
 	private int nodes = 0;
@@ -128,6 +128,6 @@ public class GoParameters {
 	}
 
 	public TimeControl getTimeControl() {
-		return clockData;
+		return timeControl;
 	}
 }

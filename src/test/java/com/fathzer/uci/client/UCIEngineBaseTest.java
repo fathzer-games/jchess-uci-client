@@ -40,12 +40,13 @@ class UCIEngineBaseTest {
 			eng.onReceive("position startpos");
 			eng.setPosition(Optional.empty(), Collections.emptyList());
 
+			final GoParameters goParams = new GoParameters();
 			eng.onReceive("go", Collections.singletonList("bestmove d2d4"));
-			GoReply reply = eng.go(null);
+			GoReply reply = eng.go(goParams);
 			assertEquals("d2d4", reply.getMoves().get(0).getMove());
 
 			eng.onReceive("go", Collections.singletonList("bestmove d2d4 ponder d7d5"));
-			reply = eng.go(null);
+			reply = eng.go(goParams);
 			assertEquals("d2d4", reply.getMoves().get(0).getMove());
 			assertTrue(reply.getMoves().get(0).getScore().isEmpty());
 			assertEquals("d7d5", reply.getPonderMove().get());
@@ -55,7 +56,7 @@ class UCIEngineBaseTest {
 					"info depth 8 seldepth 7 multipv 1 score cp 28 nodes 8133 nps 677750 hashfull 4 tbhits 0 time 12 pv d2d4 e7e6 b1c3 c7c5",
 					"info depth 8 seldepth 12 multipv 2 score mate -5 nodes 8133 nps 677750 hashfull 4 tbhits 0 time 12 pv e2e4 e7e6 g1f3 d7d5",
 					"bestmove d2d4 ponder e7e6"));
-			reply = eng.go(null);
+			reply = eng.go(goParams);
 			assertEquals("d2d4", reply.getMoves().get(0).getMove());
 			assertEquals("e7e6", reply.getPonderMove().get());
 			assertEquals(new GoReply.CpScore(28), reply.getMoves().get(0).getScore().get());
@@ -67,7 +68,7 @@ class UCIEngineBaseTest {
 			eng.onReceive("go", Arrays.asList("info depth 6 nodes 14468","info depth 7 nodes 53726",
 					"info score cp 25 depth 7 nodes 248442 time 0 pv b1c3 e7e5 g1f3 b8c6 e2e3 f8b4 f1c4",
 					"bestmove b1c3"));
-			reply = eng.go(null);
+			reply = eng.go(goParams);
 			assertEquals("b1c3", reply.getMoves().get(0).getMove());
 			assertTrue(reply.getPonderMove().isEmpty());
 			assertEquals(new GoReply.CpScore(25), reply.getMoves().get(0).getScore().get());
