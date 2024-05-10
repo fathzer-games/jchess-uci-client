@@ -129,7 +129,7 @@ public class UCIEngine implements Closeable {
 		uciBase.setPosition(fen, moves);
 	}
 
-	public GoReply go(CountDownState params) throws IOException {
+	public GoReply go(GoParameters params) throws IOException {
 		return uciBase.go(params);
 	}
 

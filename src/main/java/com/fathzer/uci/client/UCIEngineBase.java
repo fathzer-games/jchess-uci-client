@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import com.fathzer.uci.client.GoParameters.TimeControl;
 import com.fathzer.uci.client.Option.Type;
 
 import java.io.Closeable;
@@ -171,7 +172,7 @@ class UCIEngineBase implements Closeable {
 		positionSet = true;
 	}
 
-	public GoReply go(CountDownState params) throws IOException {
+	public GoReply go(GoParameters params) throws IOException {
 		checkInit();
 		if (!positionSet) {
 			throw new IllegalStateException("No position defined");
@@ -181,26 +182,23 @@ class UCIEngineBase implements Closeable {
 		return parser.get(waitAnswer(GoReplyParser.IS_REPLY, parser::parseInfo));
 	}
 
-	private String getGoCommand(CountDownState params) {
+	private String getGoCommand(GoParameters params) {
 		final StringBuilder command = new StringBuilder("go");
-		if (params!=null) {
-			command.append(' ');
+		if (params.getClockData().getRemainingMs()>0) {
+			final TimeControl clock = params.getClockData();
 			final char prefix = whiteToPlay ? 'w' : 'b';
-			command.append(prefix);
-			command.append("time ");
-			command.append(params.remainingMs());
-			if (params.incrementMs()>0) {
-				command.append(" ");
-				command.append(prefix);
-				command.append("inc ");
-				command.append(params.incrementMs());
+			command.append(' ').append(prefix).append("time ").append(clock.getRemainingMs());
+			if (clock.getIncrementMs()>0) {
+				command.append(' ').append(prefix).append("inc ").append(clock.getIncrementMs());
 			}
-			if (params.movesToGo()>0) {
-				command.append(" ");
-				command.append("movestogo ");
-				command.append(params.movesToGo());
+			if (clock.getMovesToGo()>0) {
+				command.append(' ').append("movestogo ").append(clock.getMovesToGo());
 			}
 		}
+		if (params.isPonder()) {
+			command.append(' ').append("ponder");
+		}
+		//TODO Other paramaters
 		return command.toString();
 	}
 
