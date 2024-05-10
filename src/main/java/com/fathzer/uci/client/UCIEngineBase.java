@@ -184,8 +184,8 @@ class UCIEngineBase implements Closeable {
 
 	private String getGoCommand(GoParameters params) {
 		final StringBuilder command = new StringBuilder("go");
-		if (params.getClockData().getRemainingMs()>0) {
-			final TimeControl clock = params.getClockData();
+		if (params.getTimeControl().getRemainingMs()>0) {
+			final TimeControl clock = params.getTimeControl();
 			final char prefix = whiteToPlay ? 'w' : 'b';
 			command.append(' ').append(prefix).append("time ").append(clock.getRemainingMs());
 			if (clock.getIncrementMs()>0) {

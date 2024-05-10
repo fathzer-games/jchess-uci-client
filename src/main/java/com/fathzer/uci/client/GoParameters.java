@@ -28,23 +28,23 @@ public class GoParameters {
 //			MOVES_TO_GO_PARAM, MOVE_TIME_PARAM, INFINITE_PARAM, DEPTH_PARAM, NODES_PARAM, MATE_PARAM, PONDER_PARAM, SEARCH_MOVES_PARAM));
 
 	public static class TimeControl {
-		private int remainingMs = -1;
-		private int incrementMs;
+		private long remainingMs = -1;
+		private long incrementMs;
 		private int movesToGo;
 
-		public int getRemainingMs() {
+		public long getRemainingMs() {
 			return remainingMs;
 		}
 
-		public void setRemainingMs(int remainingMs) {
+		public void setRemainingMs(long remainingMs) {
 			this.remainingMs = remainingMs;
 		}
 
-		public int getIncrementMs() {
+		public long getIncrementMs() {
 			return incrementMs;
 		}
 
-		public void setIncrementMs(int incrementMs) {
+		public void setIncrementMs(long incrementMs) {
 			this.incrementMs = incrementMs;
 		}
 
@@ -127,7 +127,7 @@ public class GoParameters {
 		this.infinite = infinite;
 	}
 
-	public TimeControl getClockData() {
+	public TimeControl getTimeControl() {
 		return clockData;
 	}
 }
