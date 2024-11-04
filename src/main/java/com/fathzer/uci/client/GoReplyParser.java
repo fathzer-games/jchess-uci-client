@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import com.fathzer.uci.client.GoReply.Score;
 import com.fathzer.uci.client.GoReply.UCIMove;
@@ -87,21 +88,27 @@ class GoReplyParser {
 		}
 		final String ponderSep = " ponder ";
 		final int index = reply.indexOf(ponderSep);
-		final String best = index<0 ? reply : reply.substring(0, index);
+		final String playedMove = index<0 ? reply : reply.substring(0, index);
 		final Optional<String> ponder = index<0 ? Optional.empty() : Optional.of(reply.substring(index+ponderSep.length()));
 		if (moves.isEmpty()) {
-			return new GoReply(Collections.singletonList(new UCIMove(best)), ponder);
+			// There is no info lines => return the move
+			return new GoReply(Collections.singletonList(new UCIMove(playedMove)), ponder);
 		}
 		if (moves.keySet().stream().mapToInt(k->k).min().getAsInt()!=0 || moves.keySet().stream().mapToInt(k->k).max().getAsInt()!=moves.size()-1) {
 			throw new IllegalArgumentException("There's a problem in MultiPv indexes: "+moves.keySet());
 		}
-		final UCIMove uciBest = moves.get(0);
-		if (uciBest.getMove()==null) {
-			uciBest.setMove(best);
+		// WARNING with some engines like Stockfish at level < 20, the played move returned by go is not always the first one and
+		// it can not be present in the info lines!
+		// So we should be cautious. First extract the played move from the info lines stream, then build the returned moves.
+		// As far as I understand the uci protocol, if there's no multiPV, the pv should concern the played move if no move is specified in it. 
+		if (moves.size()==1 && moves.get(0).getMove()==null) {
+			final UCIMove uciPlayed = moves.get(0);
+			uciPlayed.setMove(playedMove);
+			return new GoReply(Collections.singletonList(uciPlayed), ponder);
 		}
-		if (!uciBest.getMove().equals(best)) {
-			throw new IllegalArgumentException("Best MultiPv move ("+uciBest.getMove()+") is not best Move ()"+best);
-		}
-		return new GoReply(moves.values().stream().filter(m->m.getMove()!=null).toList(), ponder); 
+		final Optional<UCIMove> uciPlayedOpt = moves.values().stream().filter(m -> playedMove.equals(m.getMove())).findAny();
+		final UCIMove uciPlayed = uciPlayedOpt.orElse(new UCIMove(playedMove));
+		final Stream<UCIMove> others = moves.values().stream().filter(m->m.getMove()!=null&&!uciPlayed.getMove().equals(m.getMove()));
+		return new GoReply(Stream.concat(Stream.of(uciPlayed), others).toList(), ponder); 
 	}
 }

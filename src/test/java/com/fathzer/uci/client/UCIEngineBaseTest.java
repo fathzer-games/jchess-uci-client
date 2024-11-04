@@ -72,6 +72,17 @@ class UCIEngineBaseTest {
 			assertEquals("b1c3", reply.getMoves().get(0).getMove());
 			assertTrue(reply.getPonderMove().isEmpty());
 			assertEquals(new GoReply.CpScore(25), reply.getMoves().get(0).getScore().get());
+			
+			// Test Stockfish level 1 like go reply (selected mode is not in the info lines)
+			eng.onReceive("go", Arrays.asList("info score cp 25 depth 7 nodes 248442 time 0 pv b1c3 e7e5 g1f3 b8c6 e2e3 f8b4 f1c4",
+					"bestmove c2c3"));
+			reply = eng.go(goParams);
+			assertEquals("c2c3", reply.getMoves().get(0).getMove());
+			assertTrue(reply.getMoves().get(0).getPv().isEmpty());
+			assertTrue(reply.getMoves().get(0).getScore().isEmpty());
+			assertEquals("b1c3", reply.getMoves().get(1).getMove());
+			assertTrue(reply.getMoves().get(1).getPv().isPresent());
+			assertTrue(reply.getMoves().get(1).getScore().isPresent());
 
 			eng.onReceive("quit");
 		}

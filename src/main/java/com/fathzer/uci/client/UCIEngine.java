@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +20,15 @@ public class UCIEngine implements Closeable {
 		private final BufferedReader errorReader;
 		private final Thread spyThread;
 		private final AtomicBoolean stopped;
+		private Supplier<String> nameSupplier;
 
-		StdErrReader(BufferedReader errorReader) {
+		StdErrReader(BufferedReader errorReader, Supplier<String> nameSupplier) {
 			this.errorReader = errorReader;
 			this.stopped = new AtomicBoolean();
 			this.spyThread = new Thread(this);
 			this.spyThread.setDaemon(true);
 			this.spyThread.start();
+			this.nameSupplier = nameSupplier;
 		}
 		
 		@Override
@@ -34,7 +37,7 @@ public class UCIEngine implements Closeable {
 				try {
 					final String line = errorReader.readLine();
 					if (line!=null) {
-						log.warn(line, line); //TODO
+						log.warn("{} wrote in his log: {}", nameSupplier.get(), line);
 					}
 				} catch (EOFException e) {
 					if (!stopped.get()) {
@@ -47,10 +50,7 @@ public class UCIEngine implements Closeable {
 		}
 
 		private void log(IOException e) {
-			synchronized(System.err) {
-				System.err.println("An error occured, stopped is "+ stopped);
-				e.printStackTrace(); //TODO
-			}
+			log.error("An error occured while communicating with {}, stopped is {}", nameSupplier.get(), stopped, e);
 		}
 
 		@Override
@@ -78,29 +78,29 @@ public class UCIEngine implements Closeable {
 			@Override
 			protected void write(String line) throws IOException {
 				super.write(line);
-				log(line, false);
+				logDebug(line, false);
 			}
 
 			@Override
 			protected String read() throws IOException {
 				final String line = super.read();
-				log(line, true);
+				logDebug(line, true);
 				return line;
 			}
 		};
-		this.errorReader = new StdErrReader(process.errorReader());
+		this.errorReader = new StdErrReader(process.errorReader(), this::getName);
 		process.onExit().thenAccept(p -> {
 			if (expectedRunning) {
 				expectedRunning = false;
-				log.warn("{} UCI engine exited unexpectedly with code {}", command, p.exitValue());
+				log.warn("{} UCI engine launched with command {} exited unexpectedly with code {}", getName(),  command, p.exitValue());
 				try {
 					uciBase.closeStreams();
 					this.errorReader.close();
 				} catch (IOException e) {
-					log.error("The following error occured while closing streams of {}", command);
+					log.error("The following error occured while closing streams of {} UCI engine (launched with command {})", getName(), command);
 				}
 			} else {
-				log.info("{} UCI engine exited with code {}", command, p.exitValue());
+				log.info("{} UCI engine launched with command {} exited with code {}", getName(), command, p.exitValue());
 			}
 		});
 		if (preInit!=null) {
@@ -150,8 +150,8 @@ public class UCIEngine implements Closeable {
 		}
 	}
 	
-	protected void log(String line, boolean from) {
-		log.info("{}{} : {}", from ? "<":">", getName(), line);
+	protected void logDebug(String line, boolean fromProcess) {
+		log.debug("{}{} : {}", fromProcess ? "<":">", getName(), line);
 	}
 
 	public String getName() {
