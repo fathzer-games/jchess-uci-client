@@ -6,37 +6,15 @@ import java.util.List;
 /** The arguments of the <i>go</i> UCI command.
  */
 public class GoParameters {
-	public static class TimeControl {
-		private long remainingMs = -1;
-		private long incrementMs;
-		private int movesToGo;
-
-		public long getRemainingMs() {
-			return remainingMs;
-		}
-
-		public void setRemainingMs(long remainingMs) {
-			this.remainingMs = remainingMs;
-		}
-
-		public long getIncrementMs() {
-			return incrementMs;
-		}
-
-		public void setIncrementMs(long incrementMs) {
-			this.incrementMs = incrementMs;
-		}
-
-		public int getMovesToGo() {
-			return movesToGo;
-		}
-
-		public void setMovesToGo(int movesToGo) {
-			this.movesToGo = movesToGo;
+	public static record TimeControl (long remainingMs, long incrementMs, int movesToGo) {
+		public TimeControl {
+			if (remainingMs<0 || incrementMs<0 || movesToGo<0) {
+				throw new IllegalArgumentException();
+			}
 		}
 	}
 
-	private TimeControl timeControl = new TimeControl();
+	private TimeControl timeControl = null;
 	private boolean ponder;
 	private int depth = 0;
 	private int nodes = 0;
@@ -104,6 +82,10 @@ public class GoParameters {
 
 	public void setInfinite(boolean infinite) {
 		this.infinite = infinite;
+	}
+
+	public void setTimeControl(TimeControl timeControl) {
+		this.timeControl = timeControl;
 	}
 
 	public TimeControl getTimeControl() {

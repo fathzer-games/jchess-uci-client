@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -17,6 +18,7 @@ import java.io.EOFException;
 
 public class UCIEngine implements Closeable {
 	static class StdErrReader implements Closeable, Runnable {
+		private static final AtomicLong count = new AtomicLong();
 		private final BufferedReader errorReader;
 		private final Thread spyThread;
 		private final AtomicBoolean stopped;
@@ -27,6 +29,7 @@ public class UCIEngine implements Closeable {
 			this.stopped = new AtomicBoolean();
 			this.spyThread = new Thread(this);
 			this.spyThread.setDaemon(true);
+			this.spyThread.setName("UCI Engine std err reader "+count.incrementAndGet());
 			this.spyThread.start();
 			this.nameSupplier = nameSupplier;
 		}
@@ -50,7 +53,7 @@ public class UCIEngine implements Closeable {
 		}
 
 		private void log(IOException e) {
-			log.error("An error occured while communicating with {}, stopped is {}", nameSupplier.get(), stopped, e);
+			log.error("An error occurred while communicating with {}, stopped is {}", nameSupplier.get(), stopped, e);
 		}
 
 		@Override
@@ -82,8 +85,8 @@ public class UCIEngine implements Closeable {
 			}
 
 			@Override
-			protected String read() throws IOException {
-				final String line = super.read();
+			protected String blockingRead() throws IOException {
+				final String line = super.blockingRead();
 				logDebug(line, true);
 				return line;
 			}
@@ -131,6 +134,10 @@ public class UCIEngine implements Closeable {
 
 	public GoReply go(GoParameters params) throws IOException {
 		return uciBase.go(params);
+	}
+	
+	public void stop() throws IOException {
+		uciBase.stop();
 	}
 
 	@Override

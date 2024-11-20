@@ -2,8 +2,15 @@ package com.fathzer.uci.client;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,8 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
-
-import com.google.common.io.CharSource;
 
 class UCIEngineBaseTest {
 	
@@ -87,28 +92,36 @@ class UCIEngineBaseTest {
 			eng.onReceive("quit");
 		}
 	}
+	
+	private static record Pipe(OutputStream out, InputStream in) {
+		static Pipe build() throws IOException {
+			final PipedInputStream in = new PipedInputStream();
+			return new Pipe(new PipedOutputStream(in), in);
+		}
+	}
 
 	private static class TestEngine extends UCIEngineBase {
-		private final StringBuilder r;
 		private String expectedRequest;
 		private List<String> reply;
+		private BufferedWriter whereToWrite;
 		
-		private TestEngine(StringBuilder r, StringWriter w, List<String> uciReply) throws IOException {
-			super(CharSource.wrap(r).openBufferedStream(), new BufferedWriter(w));
-			this.r = r;
+		private TestEngine(BufferedReader r, StringWriter w, BufferedWriter whereToWrite, List<String> uciReply) throws IOException {
+			super(r, new BufferedWriter(w));
+			this.whereToWrite = whereToWrite;
 			if (uciReply!=null) {
 				onReceive("uci", uciReply);
 				init();
 			}
 		}
-
+		
 		static TestEngine build(List<String> uciReply) throws IOException {
-			return new TestEngine(new StringBuilder(), new StringWriter(), uciReply);
+			final Pipe pipe = Pipe.build();
+			final BufferedWriter whereToWrite = new BufferedWriter(new OutputStreamWriter(pipe.out));
+			return new TestEngine(new BufferedReader(new InputStreamReader(pipe.in())), new StringWriter(), whereToWrite, uciReply);
 		}
 		
 		public void onReceive(String request) {
-			this.expectedRequest = request;
-			this.reply = Collections.emptyList();
+			onReceive(request, Collections.emptyList());
 		}
 		public void onReceive(String request, List<String> reply) {
 			this.expectedRequest = request;
@@ -122,11 +135,18 @@ class UCIEngineBaseTest {
 		protected void write(String line) throws IOException {
 			assertEquals(expectedRequest, line);
 			expectedRequest = null;
-			reply.forEach(s -> {
-				r.append(s);
-				r.append('\n');
-			});
 			super.write(line);
+			for (String l:reply) {
+				whereToWrite.write(l);
+				whereToWrite.newLine();
+			}
+			whereToWrite.flush();
+		}
+
+		@Override
+		public void closeStreams() throws IOException {
+			whereToWrite.close();
+			super.closeStreams();
 		}
 	}
 }

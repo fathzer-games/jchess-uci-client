@@ -1,5 +1,5 @@
 # jchess-uci-client
-A client wrapper for UCI engines
+A partial but yet usable client wrapper for UCI engines
 
 
 ### Log

@@ -2,7 +2,6 @@ package com.fathzer.uci.client;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.LinkedList;
@@ -22,6 +21,7 @@ class UCIEngineBase implements Closeable {
 	private static final String PONDER_OPTION = "Ponder";
 	
 	private final BufferedReader reader;
+	private final InterruptibleReplyListener interruptibleReader;
 	private final BufferedWriter writer;
 	private List<Option<?>> options;
 	private String name;
@@ -31,6 +31,7 @@ class UCIEngineBase implements Closeable {
 
 	protected UCIEngineBase(BufferedReader reader, BufferedWriter writer) {
 		this.reader = reader;
+		this.interruptibleReader = new InterruptibleReplyListener(this::write, this::blockingRead);
 		this.writer = writer;
 	}
 	
@@ -41,22 +42,21 @@ class UCIEngineBase implements Closeable {
 	}
 	
 	void init() throws IOException {
-		options = new LinkedList<>();
-		this.write("uci");
-		String line;
-		do {
-			line = read();
-			if (line==null) {
-				throw new EOFException();
-			} else if (line.startsWith(ID_NAME_PREFIX)) {
+		final List<String> optionsLines = new LinkedList<>();
+		waitAnswer("uci", "uciok"::equals, line -> {
+			if (line.startsWith(ID_NAME_PREFIX)) {
 				name = line.substring(ID_NAME_PREFIX.length());
 			} else {
-				final Optional<Option<?>> ooption = parseOption(line);
-				if (ooption.isPresent() && isOptionSupported(ooption.get())) {
-					options.add(ooption.get());
-				}
+				optionsLines.add(line);
 			}
-		} while (!"uciok".equals(line));
+		});
+		options = new LinkedList<>();
+		for (String line:optionsLines) {
+			final Optional<Option<?>> ooption = parseOption(line);
+			if (ooption.isPresent() && isOptionSupported(ooption.get())) {
+				options.add(ooption.get());
+			}
+		}
 	}
 	
 	private boolean isOptionSupported(Option<?> option) {
@@ -100,7 +100,14 @@ class UCIEngineBase implements Closeable {
 		this.writer.newLine();
 		this.writer.flush();
 	}
-	protected String read() throws IOException {
+	
+	//FIXME Make this method private and call method before and after reading the internal reader
+	/** Reads the internal blocking reader until a line is available.
+	 * <br>WARNING: Never call this method outside this class except while overriding this method (for instance, to add logs to it).
+	 * @return The line that was read
+	 * @throws IOException If something went wrong
+	 */
+	protected String blockingRead() throws IOException {
 		return reader.readLine();
 	}
 
@@ -124,8 +131,7 @@ class UCIEngineBase implements Closeable {
 		if (is960Supported) {
 			write("setoption name "+CHESS960_OPTION + " value "+(variant==Variant.CHESS960));
 		}
-		write("isready");
-		return waitAnswer("readyok"::equals)!=null;
+		return waitAnswer("isready", "readyok"::equals)!=null;
 	}
 
 	/** Reads the engine standard output until a valid answer is returned.
@@ -134,8 +140,8 @@ class UCIEngineBase implements Closeable {
 	 * and the engine closed its output.
 	 * @throws IOException If communication with engine fails
 	 */
-	private String waitAnswer(Predicate<String> answerValidator) throws IOException {
-		return waitAnswer(answerValidator, s->{});
+	private String waitAnswer(String command, Predicate<String> answerValidator) throws IOException {
+		return waitAnswer(command, answerValidator, s->{});
 	}
 	/** Reads the engine standard output until a valid answer is returned.
 	 * @param answerValidator a predicate that checks the lines returned by engine. 
@@ -143,15 +149,16 @@ class UCIEngineBase implements Closeable {
 	 * and the engine closed its output.
 	 * @throws IOException If communication with engine fails
 	 */
-	private String waitAnswer(Predicate<String> answerValidator, Consumer<String> otherLines) throws IOException {
-		for (String line = read(); line!=null; line=read()) {
-			if (answerValidator.test(line)) {
-				return line;
-			} else {
-				otherLines.accept(line);
-			}
-		}
-		throw new EOFException();
+	private String waitAnswer(String command, Predicate<String> answerValidator, Consumer<String> otherLines) throws IOException {
+		return interruptibleReader.waitAnswer(command, answerValidator, otherLines);
+//		for (String line = read(); line!=null; line=read()) {
+//			if (answerValidator.test(line)) {
+//				return line;
+//			} else {
+//				otherLines.accept(line);
+//			}
+//		}
+//		throw new EOFException();
 	}
 
 	public void setPosition(Optional<String> fen, List<String> moves) throws IOException {
@@ -177,29 +184,32 @@ class UCIEngineBase implements Closeable {
 		if (!positionSet) {
 			throw new IllegalStateException("No position defined");
 		}
-		write (getGoCommand(params));
 		final GoReplyParser parser = new GoReplyParser();
-		return parser.get(waitAnswer(GoReplyParser.IS_REPLY, parser::parseInfo));
+		return parser.get(waitAnswer(getGoCommand(params), GoReplyParser.IS_REPLY, parser::parseInfo));
 	}
 
 	private String getGoCommand(GoParameters params) {
 		final StringBuilder command = new StringBuilder("go");
-		if (params.getTimeControl().getRemainingMs()>0) {
+		if (params.getTimeControl()!=null) {
 			final TimeControl clock = params.getTimeControl();
 			final char prefix = whiteToPlay ? 'w' : 'b';
-			command.append(' ').append(prefix).append("time ").append(clock.getRemainingMs());
-			if (clock.getIncrementMs()>0) {
-				command.append(' ').append(prefix).append("inc ").append(clock.getIncrementMs());
+			command.append(' ').append(prefix).append("time ").append(clock.remainingMs());
+			if (clock.incrementMs()!=0) {
+				command.append(' ').append(prefix).append("inc ").append(clock.incrementMs());
 			}
-			if (clock.getMovesToGo()>0) {
-				command.append(' ').append("movestogo ").append(clock.getMovesToGo());
+			if (clock.movesToGo()!=0) {
+				command.append(' ').append("movestogo ").append(clock.movesToGo());
 			}
 		}
 		if (params.isPonder()) {
 			command.append(' ').append("ponder");
 		}
-		//TODO Other paramaters
+		//TODO Other parameters
 		return command.toString();
+	}
+	
+	public void stop() throws IOException {
+		this.write("stop");
 	}
 
 	public void close() throws IOException {
@@ -208,6 +218,7 @@ class UCIEngineBase implements Closeable {
 	}
 
 	public void closeStreams() throws IOException {
+		interruptibleReader.close();
 		this.reader.close();
 		this.writer.close();
 	}
