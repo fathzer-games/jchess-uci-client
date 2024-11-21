@@ -151,14 +151,6 @@ class UCIEngineBase implements Closeable {
 	 */
 	private String waitAnswer(String command, Predicate<String> answerValidator, Consumer<String> otherLines) throws IOException {
 		return interruptibleReader.waitAnswer(command, answerValidator, otherLines);
-//		for (String line = read(); line!=null; line=read()) {
-//			if (answerValidator.test(line)) {
-//				return line;
-//			} else {
-//				otherLines.accept(line);
-//			}
-//		}
-//		throw new EOFException();
 	}
 
 	public void setPosition(Optional<String> fen, List<String> moves) throws IOException {

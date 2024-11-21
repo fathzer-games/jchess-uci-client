@@ -73,7 +73,7 @@ class InterruptibleReplyListener implements AutoCloseable {
 				throw new EOFException();
 			} catch (IOException e) {
 				if (linePublisher.getSubscribersCount()>0) {
-					LOG.trace("Received exception {}", e);
+					LOG.trace("Received exception", e);
 					linePublisher.submit(new ExceptionOrLine(null, e));
 				}
 			}
