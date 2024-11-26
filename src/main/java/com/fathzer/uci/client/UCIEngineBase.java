@@ -101,14 +101,23 @@ class UCIEngineBase implements Closeable {
 		this.writer.flush();
 	}
 	
-	//FIXME Make this method private and call method before and after reading the internal reader
 	/** Reads the internal blocking reader until a line is available.
-	 * <br>WARNING: Never call this method outside this class except while overriding this method (for instance, to add logs to it).
 	 * @return The line that was read
 	 * @throws IOException If something went wrong
 	 */
-	protected String blockingRead() throws IOException {
-		return reader.readLine();
+	private String blockingRead() throws IOException {
+		final String line = reader.readLine();
+		onLineRead(line);
+		return line;
+	}
+	
+	/** Called when a line is read from the process standard output.
+	 * <br>By default this method does nothing but one can override it to, for instance, log the line that was read.
+	 * @param line The line that was read
+	 * @throws IOException If something went wrong
+	 */
+	protected void onLineRead(String line) {
+		// Does nothing by default
 	}
 
 	public List<Option<?>> getOptions() {

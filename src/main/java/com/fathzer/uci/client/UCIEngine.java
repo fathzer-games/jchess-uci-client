@@ -85,10 +85,8 @@ public class UCIEngine implements Closeable {
 			}
 
 			@Override
-			protected String blockingRead() throws IOException {
-				final String line = super.blockingRead();
+			protected void onLineRead(String line) {
 				logDebug(line, true);
-				return line;
 			}
 		};
 		this.errorReader = new StdErrReader(process.errorReader(), this::getName);
