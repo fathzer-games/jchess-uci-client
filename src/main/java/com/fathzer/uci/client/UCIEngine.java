@@ -40,7 +40,7 @@ public class UCIEngine implements Closeable {
 				try {
 					final String line = errorReader.readLine();
 					if (line!=null) {
-						log.warn("{} wrote in his log: {}", nameSupplier.get(), line);
+						log.warn("{} wrote in its log: {}", nameSupplier.get(), line);
 					}
 				} catch (EOFException e) {
 					if (!stopped.get()) {
